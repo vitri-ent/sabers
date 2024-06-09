@@ -10,6 +10,7 @@ serde_repr = "0.1"
 regex = "1.10"
 simd-json = "0.13"
 thiserror = "1.0"
+glam = "0.27"
 
 [dev-dependencies]
 reqwest = "0.12"
