@@ -47,6 +47,7 @@ fn read_str<R: Read>(r: &mut R) -> Result<String, ParseError> {
 	Ok(s)
 }
 
+#[derive(Debug, Clone)]
 pub struct ReplayInfo {
 	pub version: String,
 	pub game_version: String,
@@ -114,7 +115,7 @@ impl ReplayInfo {
 	}
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct ReplayFrame {
 	pub time: f32,
 	pub fps: i32,
@@ -128,13 +129,14 @@ impl ReplayFrame {
 		Ok(Self {
 			time: read_f32(r)?,
 			fps: read_i32(r)?,
-			head: (Vec3::new(read_f32(r)?, read_f32(r)?, read_f32(r)?), Quat::from_array([read_f32(r)?, read_f32(r)?, read_f32(r)?, read_f32(r)?])),
-			left_hand: (Vec3::new(read_f32(r)?, read_f32(r)?, read_f32(r)?), Quat::from_array([read_f32(r)?, read_f32(r)?, read_f32(r)?, read_f32(r)?])),
-			right_hand: (Vec3::new(read_f32(r)?, read_f32(r)?, read_f32(r)?), Quat::from_array([read_f32(r)?, read_f32(r)?, read_f32(r)?, read_f32(r)?]))
+			head: (Vec3::new(read_f32(r)?, read_f32(r)?, read_f32(r)?), Quat::from_xyzw(read_f32(r)?, read_f32(r)?, read_f32(r)?, read_f32(r)?)),
+			left_hand: (Vec3::new(read_f32(r)?, read_f32(r)?, read_f32(r)?), Quat::from_xyzw(read_f32(r)?, read_f32(r)?, read_f32(r)?, read_f32(r)?)),
+			right_hand: (Vec3::new(read_f32(r)?, read_f32(r)?, read_f32(r)?), Quat::from_xyzw(read_f32(r)?, read_f32(r)?, read_f32(r)?, read_f32(r)?))
 		})
 	}
 }
 
+#[derive(Debug, Clone)]
 pub struct Replay {
 	pub info: ReplayInfo,
 	pub frames: Vec<ReplayFrame>
