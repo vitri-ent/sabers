@@ -1,6 +1,6 @@
 use std::{
 	fs::File,
-	io::{self, BufReader, Read},
+	io::{self, BufReader, BufWriter, Read, Write},
 	path::Path
 };
 
@@ -47,6 +47,12 @@ fn read_str<R: Read>(r: &mut R) -> Result<String, ParseError> {
 	Ok(s)
 }
 
+fn write_str<W: Write>(w: &mut W, s: &str) -> Result<(), io::Error> {
+	w.write_all(&(s.len() as i32).to_le_bytes())?;
+	w.write_all(s.as_bytes())?;
+	Ok(())
+}
+
 #[derive(Debug, Clone)]
 pub struct ReplayInfo {
 	pub version: String,
@@ -80,7 +86,7 @@ pub struct ReplayInfo {
 }
 
 impl ReplayInfo {
-	pub(crate) fn parse<R: Read>(r: &mut R) -> Result<Self, ParseError> {
+	pub fn from_reader<R: Read>(r: &mut R) -> Result<Self, ParseError> {
 		assert_eq!(read_byte(r)?, 0);
 		Ok(Self {
 			version: read_str(r)?,
@@ -103,7 +109,10 @@ impl ReplayInfo {
 			score: read_i32(r)?,
 			mode: read_str(r)?,
 			environment: read_str(r)?,
-			modifiers: read_str(r)?.split(',').map(String::from).collect(),
+			modifiers: match read_str(r)?.as_str() {
+				"" => Vec::new(),
+				v => v.split(',').map(String::from).collect()
+			},
 			jump_distance: read_f32(r)?,
 			left_handed: read_bool(r)?,
 			height: read_f32(r)?,
@@ -112,6 +121,51 @@ impl ReplayInfo {
 			fail_time: read_f32(r)?,
 			speed: read_f32(r)?
 		})
+	}
+
+	pub fn is_same_map(&self, other: &Self) -> bool {
+		self.song_hash == other.song_hash && self.mode == other.mode && self.difficulty == other.difficulty
+	}
+
+	pub fn serialize_to_writer<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
+		w.write_all(&[0])?;
+
+		write_str(w, &self.version)?;
+		write_str(w, &self.game_version)?;
+		write_str(w, &self.timestamp)?;
+
+		write_str(w, &self.player_id)?;
+		write_str(w, &self.player_name)?;
+		write_str(w, &self.platform)?;
+
+		write_str(w, &self.tracking_system)?;
+		write_str(w, &self.hmd)?;
+		write_str(w, &self.controller)?;
+
+		write_str(w, &self.song_hash)?;
+		write_str(w, &self.song_name)?;
+		write_str(w, &self.mapper)?;
+		write_str(w, &self.difficulty)?;
+
+		w.write_all(&self.score.to_le_bytes())?;
+		write_str(w, &self.mode)?;
+		write_str(w, &self.environment)?;
+		write_str(w, &self.modifiers.join(","))?;
+		w.write_all(&self.jump_distance.to_le_bytes())?;
+		w.write_all(&(self.left_handed as u8).to_le_bytes())?;
+		w.write_all(&self.height.to_le_bytes())?;
+
+		w.write_all(&self.start_time.to_le_bytes())?;
+		w.write_all(&self.fail_time.to_le_bytes())?;
+		w.write_all(&self.speed.to_le_bytes())?;
+
+		Ok(())
+	}
+
+	pub fn serialize_to_vector(&self) -> Vec<u8> {
+		let mut out = Vec::new();
+		self.serialize_to_writer(&mut out).unwrap();
+		out
 	}
 }
 
@@ -125,7 +179,7 @@ pub struct ReplayFrame {
 }
 
 impl ReplayFrame {
-	pub(crate) fn parse<R: Read>(r: &mut R) -> Result<Self, ParseError> {
+	pub fn from_reader<R: Read>(r: &mut R) -> Result<Self, ParseError> {
 		Ok(Self {
 			time: read_f32(r)?,
 			fps: read_i32(r)?,
@@ -133,6 +187,27 @@ impl ReplayFrame {
 			left_hand: (Vec3::new(read_f32(r)?, read_f32(r)?, read_f32(r)?), Quat::from_xyzw(read_f32(r)?, read_f32(r)?, read_f32(r)?, read_f32(r)?)),
 			right_hand: (Vec3::new(read_f32(r)?, read_f32(r)?, read_f32(r)?), Quat::from_xyzw(read_f32(r)?, read_f32(r)?, read_f32(r)?, read_f32(r)?))
 		})
+	}
+
+	pub fn serialize_to_writer<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
+		w.write_all(&self.time.to_le_bytes())?;
+		w.write_all(&self.fps.to_le_bytes())?;
+		for (pos, rot) in [self.head, self.left_hand, self.right_hand] {
+			w.write_all(&pos.x.to_le_bytes())?;
+			w.write_all(&pos.y.to_le_bytes())?;
+			w.write_all(&pos.z.to_le_bytes())?;
+			w.write_all(&rot.x.to_le_bytes())?;
+			w.write_all(&rot.y.to_le_bytes())?;
+			w.write_all(&rot.z.to_le_bytes())?;
+			w.write_all(&rot.w.to_le_bytes())?;
+		}
+		Ok(())
+	}
+
+	pub fn serialize_to_vector(&self) -> Vec<u8> {
+		let mut out = Vec::with_capacity(4 + 4 + ((3 + 4) * 4 * 3));
+		self.serialize_to_writer(&mut out).unwrap();
+		out
 	}
 }
 
@@ -146,14 +221,30 @@ impl Replay {
 	pub fn from_reader<R: Read>(r: &mut R) -> Result<Self, ParseError> {
 		assert_eq!(read_i32(r)?, 0x442d3d69);
 		assert_eq!(read_byte(r)?, 1);
-		let info = ReplayInfo::parse(r)?;
+		let info = ReplayInfo::from_reader(r)?;
 		assert_eq!(read_byte(r)?, 1);
 		let n_frames = read_i32(r)? as usize;
 		let mut frames = vec![ReplayFrame::default(); n_frames];
 		for frame in frames.iter_mut() {
-			*frame = ReplayFrame::parse(r)?;
+			*frame = ReplayFrame::from_reader(r)?;
 		}
 		Ok(Self { info, frames })
+	}
+
+	pub fn serialize_to_writer<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
+		w.write_all(&[0x69, 0x3d, 0x2d, 0x44, 1])?;
+		self.info.serialize_to_writer(w)?;
+		Ok(())
+	}
+
+	pub fn serialize_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
+		self.serialize_to_writer(&mut BufWriter::new(File::create(path)?))
+	}
+
+	pub fn serialize_to_vector(&self) -> Vec<u8> {
+		let mut out = Vec::new();
+		self.serialize_to_writer(&mut out).unwrap();
+		out
 	}
 
 	pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ParseError> {
@@ -162,5 +253,59 @@ impl Replay {
 
 	pub fn from_bytes<B: AsRef<[u8]>>(bytes: B) -> Result<Self, ParseError> {
 		Self::from_reader(&mut bytes.as_ref())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use std::f32::consts::PI;
+
+	use super::*;
+
+	#[test]
+	fn test_replay_frame_ser() {
+		let frame = ReplayFrame {
+			time: 0.3,
+			fps: 60,
+			head: (Vec3::new(0.0, 1.8, 0.0), Quat::IDENTITY),
+			left_hand: (Vec3::new(-1.0, 1.6, 0.25), Quat::from_rotation_y(PI / 2.)),
+			right_hand: (Vec3::new(1.0, 1.6, 0.25), Quat::from_rotation_z(PI / 2.))
+		};
+		let serialized_frame = frame.serialize_to_vector();
+		let deserialized_frame = ReplayFrame::from_reader(&mut serialized_frame.as_slice()).unwrap();
+		assert_eq!(deserialized_frame.time, frame.time);
+		assert_eq!(deserialized_frame.fps, frame.fps);
+		assert_eq!(deserialized_frame.head, frame.head);
+		assert_eq!(deserialized_frame.left_hand, frame.left_hand);
+		assert_eq!(deserialized_frame.right_hand, frame.right_hand);
+	}
+
+	#[test]
+	fn test_replay_info_ser() {
+		let Replay { info, .. } = Replay::from_file("tests/data/replays/replay1.bsor").unwrap();
+
+		let serialized_info = info.serialize_to_vector();
+		let deserialized_info = ReplayInfo::from_reader(&mut serialized_info.as_slice()).unwrap();
+		assert_eq!(deserialized_info.mapper, info.mapper);
+	}
+
+	#[test]
+	fn test_replay_parse() {
+		let replay = Replay::from_file("tests/data/replays/replay1.bsor").unwrap();
+
+		assert_eq!(replay.info.version, "0.7.1");
+		assert_eq!(replay.info.player_name, "Reddek");
+		assert_eq!(replay.info.height, 1.71 - f32::EPSILON);
+		assert_eq!(replay.info.start_time, 0.0);
+		assert_eq!(replay.info.modifiers.len(), 0);
+		assert_eq!(replay.info.difficulty, "ExpertPlus");
+	}
+
+	#[test]
+	fn test_replay_ser() {
+		let replay = std::fs::read("tests/data/replays/replay1.bsor").unwrap();
+		let parsed_replay = Replay::from_bytes(&replay).unwrap();
+		let serialized_replay = parsed_replay.serialize_to_vector();
+		assert_eq!(serialized_replay, replay[..serialized_replay.len()]); // slice is temporary until the other fields are finished
 	}
 }
