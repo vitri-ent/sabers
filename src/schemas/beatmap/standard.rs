@@ -106,7 +106,7 @@ impl Beatmap {
 	}
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum NoteColor {
 	Red = 0,
@@ -134,7 +134,7 @@ impl From<v3::NoteColor> for NoteColor {
 	}
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum NoteDirection {
 	Up = 0,
