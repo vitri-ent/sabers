@@ -8,18 +8,15 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct Beatmap {
+	#[serde(rename = "_version")]
 	pub version: String,
-	pub color_notes: Vec<ColorNote>,
-	pub bomb_notes: Vec<BombNote>,
-	pub obstacle: Vec<Obstacle>,
-	pub burst_sliders: Vec<BurstSlider>,
-	pub bpm_events: Vec<BpmEvent>,
-	pub fake_color_notes: Option<Vec<ColorNote>>,
-	pub fake_bomb_notes: Option<Vec<ColorNote>>,
-	pub fake_obstacles: Option<Vec<ColorNote>>,
-	pub fake_burst_sliders: Option<Vec<ColorNote>>
+	#[serde(rename = "_notes")]
+	pub notes: Vec<Note>,
+	#[serde(rename = "_obstacles")]
+	pub obstacles: Vec<Obstacle>,
+	#[serde(rename = "_bpmEvents")]
+	pub bpm_events: Vec<BpmEvent>
 }
 
 impl Beatmap {
@@ -58,9 +55,10 @@ impl Beatmap {
 
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
 #[repr(u8)]
-pub enum NoteColor {
+pub enum NoteType {
 	Red = 0,
-	Blue = 1
+	Blue = 1,
+	Bomb = 3
 }
 
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
@@ -75,80 +73,48 @@ pub enum NoteDirection {
 	DownLeft = 6,
 	DownRight = 7,
 	Any = 8,
-	// wtf is none if its different from any?
 	None = 9
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ColorNote {
-	#[serde(rename = "b")]
+pub struct Note {
+	#[serde(rename = "_time")]
 	pub beat: f32,
+	#[serde(rename = "_lineIndex")]
 	pub x: i8,
+	#[serde(rename = "_lineLayer")]
 	pub y: i8,
-	#[serde(rename = "a")]
-	pub angle_offset: Option<f32>,
-	#[serde(rename = "c")]
-	pub color: NoteColor,
-	#[serde(rename = "d")]
-	pub direction: NoteDirection
+	#[serde(rename = "_type")]
+	pub note_type: NoteType,
+	#[serde(rename = "_cutDirection")]
+	pub direction: NoteDirection,
+	#[serde(rename = "_angleOffset")]
+	pub angle_offset: f32,
+	#[serde(rename = "_customData")]
+	pub custom_data: Option<simd_json::OwnedValue>
 }
 
-impl ColorNote {
-	/// Returns the event time of this note based on the current BPM.
-	pub fn time(&self, bpm: f32) -> f32 {
-		self.beat * (60. / bpm)
-	}
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct BombNote {
-	#[serde(rename = "b")]
-	pub beat: f32,
-	pub x: i8,
-	pub y: i8
-}
-
-impl BombNote {
-	/// Returns the event time of this note based on the current BPM.
-	pub fn time(&self, bpm: f32) -> f32 {
-		self.beat * (60. / bpm)
-	}
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
+#[repr(u8)]
+pub enum WallType {
+	Wall = 0,
+	Ceiling = 1
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Obstacle {
-	#[serde(rename = "b")]
+	#[serde(rename = "_time")]
 	pub beat: f32,
+	#[serde(rename = "_type")]
+	pub wall_type: WallType,
+	#[serde(rename = "_lineIndex")]
 	pub x: i8,
-	pub y: i8,
-	#[serde(rename = "d")]
+	#[serde(rename = "_duration")]
 	pub duration: f32,
-	#[serde(rename = "w")]
-	pub width: i8,
-	#[serde(rename = "h")]
-	pub height: i8
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct BurstSlider {
-	#[serde(rename = "b")]
-	pub beat: f32,
-	pub x: i8,
-	pub y: i8,
-	#[serde(rename = "c")]
-	pub color: NoteColor,
-	#[serde(rename = "d")]
-	pub direction: NoteDirection,
-	#[serde(rename = "tb")]
-	pub tail_beat: f32,
-	#[serde(rename = "tx")]
-	pub tail_x: i8,
-	#[serde(rename = "ty")]
-	pub tail_y: i8,
-	#[serde(rename = "sc")]
-	pub num_slices: u8,
-	#[serde(rename = "s")]
-	pub squish_amount: f32
+	#[serde(rename = "_width")]
+	pub width: u8,
+	#[serde(rename = "_customData")]
+	pub custom_data: Option<simd_json::OwnedValue>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

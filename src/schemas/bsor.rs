@@ -241,7 +241,7 @@ impl Replay {
 		self.serialize_to_writer(&mut BufWriter::new(File::create(path)?))
 	}
 
-	pub fn serialize_to_vector(&self) -> Vec<u8> {
+	pub fn serialize_to_bytes(&self) -> Vec<u8> {
 		let mut out = Vec::new();
 		self.serialize_to_writer(&mut out).unwrap();
 		out
@@ -305,7 +305,7 @@ mod tests {
 	fn test_replay_ser() {
 		let replay = std::fs::read("tests/data/replays/replay1.bsor").unwrap();
 		let parsed_replay = Replay::from_bytes(&replay).unwrap();
-		let serialized_replay = parsed_replay.serialize_to_vector();
+		let serialized_replay = parsed_replay.serialize_to_bytes();
 		assert_eq!(serialized_replay, replay[..serialized_replay.len()]); // slice is temporary until the other fields are finished
 	}
 }
