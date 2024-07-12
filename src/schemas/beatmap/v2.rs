@@ -15,7 +15,7 @@ pub struct Beatmap {
 	pub notes: Vec<Note>,
 	#[serde(rename = "_obstacles")]
 	pub obstacles: Vec<Obstacle>,
-	#[serde(rename = "_bpmEvents")]
+	#[serde(rename = "_bpmEvents", default = "Vec::new")]
 	pub bpm_events: Vec<BpmEvent>
 }
 
@@ -48,12 +48,12 @@ impl Beatmap {
 		simd_json::from_reader(reader)
 	}
 
-	pub fn from_path<P: AsRef<Path>>(&self, path: P) -> simd_json::Result<Self> {
+	pub fn from_file<P: AsRef<Path>>(path: P) -> simd_json::Result<Self> {
 		Self::from_reader(BufReader::new(File::open(path)?))
 	}
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum NoteType {
 	Red = 0,
@@ -61,7 +61,7 @@ pub enum NoteType {
 	Bomb = 3
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum NoteDirection {
 	Up = 0,
@@ -72,8 +72,7 @@ pub enum NoteDirection {
 	UpRight = 5,
 	DownLeft = 6,
 	DownRight = 7,
-	Any = 8,
-	None = 9
+	Any = 8
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -89,12 +88,12 @@ pub struct Note {
 	#[serde(rename = "_cutDirection")]
 	pub direction: NoteDirection,
 	#[serde(rename = "_angleOffset")]
-	pub angle_offset: f32,
+	pub angle_offset: Option<f32>,
 	#[serde(rename = "_customData")]
 	pub custom_data: Option<simd_json::OwnedValue>
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum WallType {
 	Wall = 0,

@@ -11,6 +11,7 @@ use simd_json::{
 };
 use thiserror::Error;
 
+pub mod standard;
 pub mod v2;
 pub mod v3;
 
@@ -102,7 +103,7 @@ impl AnyverBeatmap {
 		Self::inner_parse(simd_json::from_reader(reader)?)
 	}
 
-	pub fn from_path<P: AsRef<Path>>(&self, path: P) -> Result<Self, AnyverParseError> {
+	pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, AnyverParseError> {
 		Self::from_reader(BufReader::new(File::open(path)?))
 	}
 

@@ -13,7 +13,7 @@ pub struct Beatmap {
 	pub version: String,
 	pub color_notes: Vec<ColorNote>,
 	pub bomb_notes: Vec<BombNote>,
-	pub obstacle: Vec<Obstacle>,
+	pub obstacles: Vec<Obstacle>,
 	pub burst_sliders: Vec<BurstSlider>,
 	pub bpm_events: Vec<BpmEvent>,
 	pub fake_color_notes: Option<Vec<ColorNote>>,
@@ -51,19 +51,19 @@ impl Beatmap {
 		simd_json::from_reader(reader)
 	}
 
-	pub fn from_path<P: AsRef<Path>>(&self, path: P) -> simd_json::Result<Self> {
+	pub fn from_file<P: AsRef<Path>>(path: P) -> simd_json::Result<Self> {
 		Self::from_reader(BufReader::new(File::open(path)?))
 	}
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum NoteColor {
 	Red = 0,
 	Blue = 1
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum NoteDirection {
 	Up = 0,
@@ -74,9 +74,7 @@ pub enum NoteDirection {
 	UpRight = 5,
 	DownLeft = 6,
 	DownRight = 7,
-	Any = 8,
-	// wtf is none if its different from any?
-	None = 9
+	Any = 8
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -124,9 +122,9 @@ pub struct Obstacle {
 	#[serde(rename = "d")]
 	pub duration: f32,
 	#[serde(rename = "w")]
-	pub width: i8,
+	pub width: u8,
 	#[serde(rename = "h")]
-	pub height: i8
+	pub height: u8
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

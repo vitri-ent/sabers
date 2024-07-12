@@ -1,3 +1,9 @@
+use std::{
+	fs::File,
+	io::{BufReader, BufWriter, Read, Write},
+	path::Path
+};
+
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -16,7 +22,7 @@ pub struct MapInfo {
 	#[serde(rename = "_beatsPerMinute")]
 	pub bpm: f32,
 	#[serde(rename = "_shuffle")]
-	pub shuffle: i32,
+	pub shuffle: f32,
 	#[serde(rename = "_shufflePeriod")]
 	pub shuffle_period: f32,
 	#[serde(rename = "_previewStartTime")]
@@ -36,8 +42,36 @@ pub struct MapInfo {
 }
 
 impl MapInfo {
-	pub unsafe fn from_str(s: &mut str) -> simd_json::Result<Self> {
-		simd_json::from_str(s)
+	pub fn serialize_to_string(&self, readable: bool) -> simd_json::Result<String> {
+		if readable { simd_json::to_string_pretty(self) } else { simd_json::to_string(self) }
+	}
+
+	pub fn serialize_to_writer<W: Write>(&self, writer: W, readable: bool) -> simd_json::Result<()> {
+		if readable {
+			simd_json::to_writer_pretty(writer, self)
+		} else {
+			simd_json::to_writer(writer, self)
+		}
+	}
+
+	pub fn serialize_to_file<P: AsRef<Path>>(&self, path: P, readable: bool) -> simd_json::Result<()> {
+		self.serialize_to_writer(&mut BufWriter::new(File::create(path)?), readable)
+	}
+
+	pub fn serialize_to_bytes(&self, readable: bool) -> simd_json::Result<Vec<u8>> {
+		if readable { simd_json::to_vec_pretty(self) } else { simd_json::to_vec(self) }
+	}
+
+	pub fn from_string(s: impl Into<String>) -> simd_json::Result<Self> {
+		unsafe { simd_json::from_str(&mut s.into()) }
+	}
+
+	pub fn from_reader<R: Read>(reader: R) -> simd_json::Result<Self> {
+		simd_json::from_reader(reader)
+	}
+
+	pub fn from_file<P: AsRef<Path>>(path: P) -> simd_json::Result<Self> {
+		Self::from_reader(BufReader::new(File::open(path)?))
 	}
 }
 
