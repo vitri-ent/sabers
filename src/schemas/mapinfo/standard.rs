@@ -1,17 +1,18 @@
 use std::{
 	convert::Infallible,
 	fmt::Display,
-	io,
+	fs, io,
 	path::{Path, PathBuf},
 	str::FromStr
 };
 
+use sha1_smol::Sha1;
 use thiserror::Error;
 
 use super::v2;
 use crate::schemas::beatmap::{self, AnyverBeatmap, AnyverParseError};
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BeatmapCharacteristic {
 	Standard,
 	NoArrows,
@@ -144,6 +145,7 @@ pub enum MapReadError {
 
 #[derive(Debug)]
 pub struct MapInfo {
+	pub hash: String,
 	pub song: SongMeta,
 	pub audio: AudioMeta,
 	pub maps: Vec<Beatmap>
@@ -151,18 +153,24 @@ pub struct MapInfo {
 
 impl MapInfo {
 	pub fn from_dir<P: AsRef<Path>>(path: P) -> Result<Self, MapReadError> {
+		let mut hasher = Sha1::new();
 		let path = path.as_ref();
 		let mut info_dat = path.join("Info.dat");
 		if !info_dat.exists() {
 			info_dat = path.join("info.dat");
 		}
-		let info = v2::MapInfo::from_file(info_dat)?;
+
+		let info = fs::read_to_string(info_dat)?;
+		hasher.update(info.as_bytes());
+		let info = v2::MapInfo::from_string(info)?;
 
 		let mut maps = Vec::new();
 		for set in info.beatmap_sets {
 			let characteristic = BeatmapCharacteristic::from_str(&set.characteristic).unwrap();
 			for map in set.beatmaps {
-				let beatmap = beatmap::standard::Beatmap::from_any(AnyverBeatmap::from_file(path.join(map.filename))?, info.bpm);
+				let beatmap = fs::read_to_string(path.join(map.filename))?;
+				hasher.update(beatmap.as_bytes());
+				let beatmap = beatmap::standard::Beatmap::from_any(AnyverBeatmap::from_string(beatmap)?, info.bpm);
 				maps.push(Beatmap {
 					difficulty: Difficulty::from_str(&map.difficulty).map_err(MapReadError::BadDifficulty)?,
 					characteristic: characteristic.clone(),
@@ -173,6 +181,7 @@ impl MapInfo {
 			}
 		}
 		Ok(Self {
+			hash: hasher.digest().to_string().to_uppercase(),
 			audio: AudioMeta {
 				bpm: info.bpm,
 				audio_path: path.join(info.song_filename),
