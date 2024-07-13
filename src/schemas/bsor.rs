@@ -234,6 +234,11 @@ impl Replay {
 	pub fn serialize_to_writer<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
 		w.write_all(&[0x69, 0x3d, 0x2d, 0x44, 1])?;
 		self.info.serialize_to_writer(w)?;
+		w.write_all(&[1])?;
+		w.write_all(&(self.frames.len() as i32).to_le_bytes())?;
+		for frame in &self.frames {
+			frame.serialize_to_writer(w)?;
+		}
 		Ok(())
 	}
 
