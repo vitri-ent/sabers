@@ -381,8 +381,10 @@ impl BpmTracker {
 		let mut base_bpm = start_bpm;
 		let mut changes = Vec::new();
 		if !events.is_empty() {
+			let mut n_base = 0;
 			if events[0].song_time == 0. {
-				base_bpm = events.pop().unwrap().beats;
+				n_base = 1;
+				base_bpm = events[0].beats;
 				changes.push(BpmChangeEvent {
 					bpm: base_bpm,
 					start_time: 0.,
@@ -390,7 +392,7 @@ impl BpmTracker {
 				});
 			}
 
-			for event in events {
+			for event in events.iter().skip(n_base) {
 				let last_change = changes.get(changes.len() - 1).cloned().unwrap_or(BpmChangeEvent {
 					bpm: base_bpm,
 					start_time: 0.,
