@@ -1,4 +1,6 @@
-use super::{v2, v3, AnyverBeatmap};
+use std::{io::Read, path::Path};
+
+use super::{v2, v3, AnyverBeatmap, AnyverParseError};
 
 #[derive(Debug, Clone)]
 pub struct Beatmap {
@@ -14,6 +16,18 @@ impl Beatmap {
 			AnyverBeatmap::V2(v2) => Self::from_v2(v2, bpm),
 			AnyverBeatmap::V3(v3) => Self::from_v3(v3, bpm)
 		}
+	}
+
+	pub fn from_file<P: AsRef<Path>>(path: P, bpm: f32) -> Result<Self, AnyverParseError> {
+		Ok(Self::from_any(AnyverBeatmap::from_file(path)?, bpm))
+	}
+
+	pub fn from_string(s: impl Into<String>, bpm: f32) -> Result<Self, AnyverParseError> {
+		Ok(Self::from_any(AnyverBeatmap::from_string(s)?, bpm))
+	}
+
+	pub fn from_reader<R: Read>(reader: R, bpm: f32) -> Result<Self, AnyverParseError> {
+		Ok(Self::from_any(AnyverBeatmap::from_reader(reader)?, bpm))
 	}
 
 	pub fn from_v2(beatmap: v2::Beatmap, bpm: f32) -> Self {
@@ -184,8 +198,8 @@ impl From<v3::NoteDirection> for NoteDirection {
 pub struct Beat {
 	beat: f32,
 	pub time: f32,
-	pub x: i8,
-	pub y: i8,
+	pub x: f32,
+	pub y: f32,
 	pub angle_offset: Option<f32>,
 	pub color: NoteColor,
 	pub direction: NoteDirection
@@ -229,8 +243,8 @@ impl From<v3::ColorNote> for Beat {
 pub struct Bomb {
 	beat: f32,
 	pub time: f32,
-	pub x: i8,
-	pub y: i8
+	pub x: f32,
+	pub y: f32
 }
 
 impl TryFrom<v2::Note> for Bomb {
@@ -264,27 +278,50 @@ impl From<v3::BombNote> for Bomb {
 pub struct Obstacle {
 	beat: f32,
 	pub time: f32,
-	pub x: i8,
-	pub y: i8,
+	pub x: f32,
+	pub y: f32,
 	duration_beats: f32,
 	pub duration: f32,
 	pub end_time: f32,
-	pub width: u8,
-	pub height: u8
+	pub width: f32,
+	pub height: f32
 }
 
 impl From<v2::Obstacle> for Obstacle {
 	fn from(value: v2::Obstacle) -> Self {
-		let is_ceiling = value.wall_type == v2::WallType::Ceiling;
+		let (y, height) = match value.wall_type {
+			0 => (0., 5.),
+			1 => (2., 3.),
+			t => {
+				let mut value = t;
+				let h = if t >= 4001 && t <= 410000 {
+					value -= 4001;
+					value / 1000
+				} else {
+					value - 1000
+				};
+				let h = ((h as f32 / 1000.) * 5.) * 1000. + 1000.;
+
+				let mut sh = 0.0;
+				let mut v1 = t;
+				if t >= 4001 && t <= 410000 {
+					v1 -= 4001;
+					sh = v1 as f32 % 1000.;
+				}
+
+				let l = ((sh / 750.) * 5.) * 1000. + 1334.;
+				(l / 1000. - 2., (h - 1000.) / 1000.)
+			}
+		};
 		Self {
 			beat: value.beat,
 			time: 0.,
 			x: value.x,
-			y: if is_ceiling { 2 } else { 0 },
+			y,
 			duration_beats: value.duration,
 			duration: 0.0,
 			end_time: 0.0,
-			height: if is_ceiling { 3 } else { 5 },
+			height,
 			width: value.width
 		}
 	}
@@ -310,14 +347,14 @@ impl From<v3::Obstacle> for Obstacle {
 pub struct Chain {
 	beat: f32,
 	pub time: f32,
-	pub x: i8,
-	pub y: i8,
+	pub x: f32,
+	pub y: f32,
 	pub color: NoteColor,
 	pub direction: NoteDirection,
 	tail_beat: f32,
 	pub tail_time: f32,
-	pub tail_x: i8,
-	pub tail_y: i8,
+	pub tail_x: f32,
+	pub tail_y: f32,
 	pub num_slices: u8,
 	pub squish_factor: f32
 }
@@ -377,7 +414,7 @@ struct BpmTracker {
 }
 
 impl BpmTracker {
-	pub fn new(start_bpm: f32, mut events: Vec<BpmEvent>) -> Self {
+	pub fn new(start_bpm: f32, events: Vec<BpmEvent>) -> Self {
 		let mut base_bpm = start_bpm;
 		let mut changes = Vec::new();
 		if !events.is_empty() {
@@ -419,5 +456,15 @@ impl BpmTracker {
 		}
 		let prev_bpm_change = &self.changes[i];
 		prev_bpm_change.start_time + ((time - prev_bpm_change.start_bpm_time) / prev_bpm_change.bpm) * 60.0
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::Beatmap;
+
+	#[test]
+	fn test_mapping_extensions_ok() {
+		assert!(Beatmap::from_file("tests/data/maps/1579c_ExpertPlusStandard.dat", 222.0).is_ok());
 	}
 }

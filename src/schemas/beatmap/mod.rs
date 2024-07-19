@@ -12,6 +12,7 @@ use simd_json::{
 use thiserror::Error;
 
 pub mod standard;
+mod util;
 pub mod v2;
 pub mod v3;
 

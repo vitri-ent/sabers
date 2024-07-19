@@ -61,7 +61,7 @@ pub enum NoteType {
 	Bomb = 3
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize_repr, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum NoteDirection {
 	Up = 0,
@@ -75,14 +75,47 @@ pub enum NoteDirection {
 	Any = 8
 }
 
+impl<'de> Deserialize<'de> for NoteDirection {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>
+	{
+		let value = u32::deserialize(deserializer)?;
+		match value {
+			0 => Ok(NoteDirection::Up),
+			1 => Ok(NoteDirection::Down),
+			2 => Ok(NoteDirection::Left),
+			3 => Ok(NoteDirection::Right),
+			4 => Ok(NoteDirection::UpLeft),
+			5 => Ok(NoteDirection::UpRight),
+			6 => Ok(NoteDirection::DownLeft),
+			7 => Ok(NoteDirection::DownRight),
+			8 => Ok(NoteDirection::Any),
+
+			// close enough approximation for mapping extensions' 360 degree note rotation
+			1000..1023 => Ok(NoteDirection::Down),
+			1023..1068 => Ok(NoteDirection::DownLeft),
+			1068..1113 => Ok(NoteDirection::Left),
+			1113..1158 => Ok(NoteDirection::UpLeft),
+			1158..1203 => Ok(NoteDirection::Up),
+			1203..1248 => Ok(NoteDirection::UpRight),
+			1248..1293 => Ok(NoteDirection::Right),
+			1293..1338 => Ok(NoteDirection::DownRight),
+			1338..=1360 => Ok(NoteDirection::Down),
+
+			other => Err(serde::de::Error::custom(format!("invalid value: {other}")))
+		}
+	}
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Note {
 	#[serde(rename = "_time")]
 	pub beat: f32,
-	#[serde(rename = "_lineIndex")]
-	pub x: i8,
-	#[serde(rename = "_lineLayer")]
-	pub y: i8,
+	#[serde(rename = "_lineIndex", deserialize_with = "super::util::deserialize_precision")]
+	pub x: f32,
+	#[serde(rename = "_lineLayer", deserialize_with = "super::util::deserialize_precision")]
+	pub y: f32,
 	#[serde(rename = "_type")]
 	pub note_type: NoteType,
 	#[serde(rename = "_cutDirection")]
@@ -93,25 +126,18 @@ pub struct Note {
 	pub custom_data: Option<simd_json::OwnedValue>
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum WallType {
-	Wall = 0,
-	Ceiling = 1
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Obstacle {
 	#[serde(rename = "_time")]
 	pub beat: f32,
 	#[serde(rename = "_type")]
-	pub wall_type: WallType,
-	#[serde(rename = "_lineIndex")]
-	pub x: i8,
+	pub wall_type: u32,
+	#[serde(rename = "_lineIndex", deserialize_with = "super::util::deserialize_precision")]
+	pub x: f32,
 	#[serde(rename = "_duration")]
 	pub duration: f32,
-	#[serde(rename = "_width")]
-	pub width: u8,
+	#[serde(rename = "_width", deserialize_with = "super::util::deserialize_precision")]
+	pub width: f32,
 	#[serde(rename = "_customData")]
 	pub custom_data: Option<simd_json::OwnedValue>
 }

@@ -63,7 +63,7 @@ pub enum NoteColor {
 	Blue = 1
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize_repr, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum NoteDirection {
 	Up = 0,
@@ -77,12 +77,47 @@ pub enum NoteDirection {
 	Any = 8
 }
 
+impl<'de> Deserialize<'de> for NoteDirection {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>
+	{
+		let value = u32::deserialize(deserializer)?;
+		match value {
+			0 => Ok(NoteDirection::Up),
+			1 => Ok(NoteDirection::Down),
+			2 => Ok(NoteDirection::Left),
+			3 => Ok(NoteDirection::Right),
+			4 => Ok(NoteDirection::UpLeft),
+			5 => Ok(NoteDirection::UpRight),
+			6 => Ok(NoteDirection::DownLeft),
+			7 => Ok(NoteDirection::DownRight),
+			8 => Ok(NoteDirection::Any),
+
+			// close enough approximation for mapping extensions' 360 degree note rotation
+			1000..1023 => Ok(NoteDirection::Down),
+			1023..1068 => Ok(NoteDirection::DownLeft),
+			1068..1113 => Ok(NoteDirection::Left),
+			1113..1158 => Ok(NoteDirection::UpLeft),
+			1158..1203 => Ok(NoteDirection::Up),
+			1203..1248 => Ok(NoteDirection::UpRight),
+			1248..1293 => Ok(NoteDirection::Right),
+			1293..1338 => Ok(NoteDirection::DownRight),
+			1338..=1360 => Ok(NoteDirection::Down),
+
+			other => Err(serde::de::Error::custom(format!("invalid value: {other}")))
+		}
+	}
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ColorNote {
 	#[serde(rename = "b")]
 	pub beat: f32,
-	pub x: i8,
-	pub y: i8,
+	#[serde(deserialize_with = "super::util::deserialize_precision")]
+	pub x: f32,
+	#[serde(deserialize_with = "super::util::deserialize_precision")]
+	pub y: f32,
 	#[serde(rename = "a")]
 	pub angle_offset: Option<f32>,
 	#[serde(rename = "c")]
@@ -102,8 +137,10 @@ impl ColorNote {
 pub struct BombNote {
 	#[serde(rename = "b")]
 	pub beat: f32,
-	pub x: i8,
-	pub y: i8
+	#[serde(deserialize_with = "super::util::deserialize_precision")]
+	pub x: f32,
+	#[serde(deserialize_with = "super::util::deserialize_precision")]
+	pub y: f32
 }
 
 impl BombNote {
@@ -117,32 +154,36 @@ impl BombNote {
 pub struct Obstacle {
 	#[serde(rename = "b")]
 	pub beat: f32,
-	pub x: i8,
-	pub y: i8,
+	#[serde(deserialize_with = "super::util::deserialize_precision")]
+	pub x: f32,
+	#[serde(deserialize_with = "super::util::deserialize_precision")]
+	pub y: f32,
 	#[serde(rename = "d")]
 	pub duration: f32,
-	#[serde(rename = "w")]
-	pub width: u8,
-	#[serde(rename = "h")]
-	pub height: u8
+	#[serde(rename = "w", deserialize_with = "super::util::deserialize_precision")]
+	pub width: f32,
+	#[serde(rename = "h", deserialize_with = "super::util::deserialize_precision")]
+	pub height: f32
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BurstSlider {
 	#[serde(rename = "b")]
 	pub beat: f32,
-	pub x: i8,
-	pub y: i8,
+	#[serde(deserialize_with = "super::util::deserialize_precision")]
+	pub x: f32,
+	#[serde(deserialize_with = "super::util::deserialize_precision")]
+	pub y: f32,
 	#[serde(rename = "c")]
 	pub color: NoteColor,
 	#[serde(rename = "d")]
 	pub direction: NoteDirection,
 	#[serde(rename = "tb")]
 	pub tail_beat: f32,
-	#[serde(rename = "tx")]
-	pub tail_x: i8,
-	#[serde(rename = "ty")]
-	pub tail_y: i8,
+	#[serde(rename = "tx", deserialize_with = "super::util::deserialize_precision")]
+	pub tail_x: f32,
+	#[serde(rename = "ty", deserialize_with = "super::util::deserialize_precision")]
+	pub tail_y: f32,
 	#[serde(rename = "sc")]
 	pub num_slices: u8,
 	#[serde(rename = "s")]
