@@ -1,7 +1,7 @@
 use std::{
 	convert::Infallible,
 	fmt::Display,
-	fs, io,
+	io,
 	path::{Path, PathBuf},
 	str::FromStr
 };
@@ -10,7 +10,10 @@ use sha1_smol::Sha1;
 use thiserror::Error;
 
 use super::v2;
-use crate::schemas::beatmap::{self, AnyverBeatmap, AnyverParseError};
+use crate::{
+	schemas::beatmap::{self, AnyverBeatmap, AnyverParseError},
+	util::fs::{FileSystem, NativeFileSystem}
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BeatmapCharacteristic {
@@ -139,6 +142,11 @@ pub enum MapReadError {
 	MapParseError(#[from] AnyverParseError),
 	#[error("Failed to read file: {0}")]
 	IoError(#[from] io::Error),
+	#[cfg(feature = "zip")]
+	#[error("Failed to read from ZIP file: {0}")]
+	ZipError(#[from] zip::result::ZipError),
+	#[error("Missing `Info.dat`")]
+	MissingInfoDat,
 	#[error("Unexepcted beatmap difficulty '{0}'")]
 	BadDifficulty(String)
 }
@@ -153,24 +161,37 @@ pub struct MapInfo {
 
 impl MapInfo {
 	pub fn from_dir<P: AsRef<Path>>(path: P) -> Result<Self, MapReadError> {
-		let mut hasher = Sha1::new();
-		let path = path.as_ref();
-		let mut info_dat = path.join("Info.dat");
-		if !info_dat.exists() {
-			info_dat = path.join("info.dat");
-		}
+		Self::from_fs(NativeFileSystem::new(path.as_ref()))
+	}
 
-		let info = fs::read_to_string(info_dat)?;
-		hasher.update(info.as_bytes());
-		let info = v2::MapInfo::from_string(info)?;
+	#[cfg(feature = "zip")]
+	pub fn from_zip<R: io::Read + io::Seek>(reader: R) -> Result<Self, MapReadError> {
+		use crate::util::fs::ZipFileSystem;
+		Self::from_fs(ZipFileSystem::new(reader)?)
+	}
+
+	fn from_fs<F: FileSystem>(mut fs: F) -> Result<Self, MapReadError>
+	where
+		MapReadError: From<F::Err>
+	{
+		let mut hasher = Sha1::new();
+
+		let info = fs.read_bytes(
+			&fs.list()?
+				.into_iter()
+				.find(|c| c.to_string_lossy().eq_ignore_ascii_case("info.dat"))
+				.ok_or(MapReadError::MissingInfoDat)?
+		)?;
+		hasher.update(&info);
+		let info = v2::MapInfo::from_reader(&*info)?;
 
 		let mut maps = Vec::new();
 		for set in info.beatmap_sets {
 			let characteristic = BeatmapCharacteristic::from_str(&set.characteristic).unwrap();
 			for map in set.beatmaps {
-				let beatmap = fs::read_to_string(path.join(map.filename))?;
-				hasher.update(beatmap.as_bytes());
-				let beatmap = beatmap::standard::Beatmap::from_any(AnyverBeatmap::from_string(beatmap)?, info.bpm);
+				let beatmap = fs.read_bytes(&PathBuf::from(map.filename))?;
+				hasher.update(&beatmap);
+				let beatmap = beatmap::standard::Beatmap::from_any(AnyverBeatmap::from_reader(&*beatmap)?, info.bpm);
 				maps.push(Beatmap {
 					difficulty: Difficulty::from_str(&map.difficulty).map_err(MapReadError::BadDifficulty)?,
 					characteristic: characteristic.clone(),
@@ -184,16 +205,30 @@ impl MapInfo {
 			hash: hasher.digest().to_string().to_uppercase(),
 			audio: AudioMeta {
 				bpm: info.bpm,
-				audio_path: path.join(info.song_filename),
+				audio_path: info.song_filename.into(),
 				song_time_offset: info.song_time_offset
 			},
 			song: SongMeta {
 				title: info.song_name,
 				subtitle: (!info.song_sub_name.is_empty()).then_some(info.song_sub_name),
 				author: info.song_author_name,
-				cover_image_path: path.join(info.cover_image_filename)
+				cover_image_path: info.cover_image_filename.into()
 			},
 			maps
 		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::MapInfo;
+
+	#[test]
+	#[cfg(feature = "zip")]
+	fn load_zip() {
+		use std::{fs::File, io::BufReader};
+
+		let map_info = MapInfo::from_zip(BufReader::new(File::open("tests/data/maps/389bc (x=10 - Alpha Cancri).zip").unwrap())).unwrap();
+		assert_eq!(map_info.song.title, "x=1/0");
 	}
 }
