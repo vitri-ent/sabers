@@ -6,8 +6,8 @@ use std::{
 
 use serde::Deserialize;
 use simd_json::{
-	derived::{ValueObjectAccess, ValueTryAsScalar},
-	OwnedValue
+	OwnedValue,
+	derived::{ValueObjectAccess, ValueTryAsScalar}
 };
 use thiserror::Error;
 

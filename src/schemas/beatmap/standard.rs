@@ -1,6 +1,6 @@
 use std::{io::Read, path::Path};
 
-use super::{v2, v3, AnyverBeatmap, AnyverParseError};
+use super::{AnyverBeatmap, AnyverParseError, v2, v3};
 
 #[derive(Debug, Clone)]
 pub struct Beatmap {

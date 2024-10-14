@@ -8,7 +8,7 @@ use std::{
 };
 
 #[cfg(feature = "zip")]
-use zip::{result::ZipError, ZipArchive};
+use zip::{ZipArchive, result::ZipError};
 
 pub trait FileSystem {
 	type Err: Error;
