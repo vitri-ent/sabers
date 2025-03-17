@@ -4,15 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-zip = { version = "2", optional = true, default-features = false, features = [ "deflate-flate2" ] }
-# enabling deflate-miniz for the zip crate also pulls in zopfli for some reason?
-flate2 = { version = "1.0", optional = true, default-features = false, features = [ "miniz_oxide" ] }
+zip = { version = "2", optional = true, default-features = false, features = [ "deflate" ] }
+flate2 = { version = "1.0", optional = true, default-features = false, features = [ "rust_backend" ] }
 sha1_smol = "1.0"
 serde = { version = "1", features = [ "derive" ] }
 serde_repr = "0.1"
-simd-json = "0.13"
-thiserror = "1.0"
-glam = "0.28"
+simd-json = "0.14"
+thiserror = "2.0"
+glam = "0.29"
 
 [features]
 default = [ "zip" ]
